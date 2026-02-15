@@ -196,4 +196,130 @@ class ReportGenerator:
         
         # Title
         pdf.set_font('DejaVu', 'B', 20)
-        pdf.cell(0, 20, f'{company_name} Financial Analysis', 0
+        pdf.cell(0, 20, f'{company_name} Financial Analysis', 0, 1, 'C')
+        pdf.ln(5)
+        
+        # Executive Summary
+        pdf.chapter_title('Executive Summary')
+        pdf.chapter_body(summary_text)
+        
+        # Key Metrics Dashboard
+        pdf.chapter_title('Key Financial Metrics')
+        
+        # Create metric boxes (2 per row)
+        metrics = [
+            ('Revenue', f"${inc_df.loc['Revenue'].iloc[0]:,.0f}M" if 'Revenue' in inc_df.index else 'N/A', 'Latest quarter'),
+            ('Net Income', f"${inc_df.loc['Net Income'].iloc[0]:,.0f}M" if 'Net Income' in inc_df.index else 'N/A', 'Latest quarter'),
+            ('Total Assets', f"${bs_df.loc['Total Assets'].iloc[0]:,.0f}M" if 'Total Assets' in bs_df.index else 'N/A', 'End of period'),
+            ('Total Equity', f"${bs_df.loc['Total Equity'].iloc[0]:,.0f}M" if 'Total Equity' in bs_df.index else 'N/A', 'End of period')
+        ]
+        
+        # Arrange metrics in a grid
+        pdf.set_font('DejaVu', '', 10)
+        for i, (title, value, desc) in enumerate(metrics):
+            if i % 2 == 0:
+                pdf.ln(30) if i > 0 else None
+                pdf.set_x(10)
+            pdf.add_metric_box(title, value, desc)
+        pdf.ln(30)
+        
+        # Balance Sheet
+        pdf.add_page()
+        pdf.chapter_title('Balance Sheet Analysis')
+        pdf.add_table(bs_df, 'Balance Sheet (Selected Items)')
+        
+        if 'balance_sheet' in chart_paths:
+            pdf.add_image(chart_paths['balance_sheet'], 'Balance Sheet Trend')
+        
+        if 'asset_composition' in chart_paths:
+            pdf.add_image(chart_paths['asset_composition'], 'Asset Composition')
+        
+        # Income Statement
+        pdf.add_page()
+        pdf.chapter_title('Income Statement Analysis')
+        pdf.add_table(inc_df, 'Income Statement')
+        
+        if 'income_statement' in chart_paths:
+            pdf.add_image(chart_paths['income_statement'], 'Income Statement Trends')
+        
+        # Cash Flow Statement
+        pdf.add_page()
+        pdf.chapter_title('Cash Flow Analysis')
+        pdf.add_table(cf_df, 'Cash Flow Statement')
+        
+        if 'cash_flow' in chart_paths:
+            pdf.add_image(chart_paths['cash_flow'], 'Cash Flow Waterfall')
+        
+        # Financial Ratios
+        pdf.add_page()
+        pdf.chapter_title('Financial Ratios Analysis')
+        pdf.add_table(ratios_df, 'Key Financial Ratios')
+        
+        if 'ratios' in chart_paths:
+            pdf.add_image(chart_paths['ratios'], 'Ratios Comparison')
+        
+        # Common-size statements
+        pdf.add_page()
+        pdf.chapter_title('Common-Size Analysis')
+        
+        # Common-size balance sheet
+        cs_bs, cs_inc = Analyzer.common_size(bs_df, inc_df)
+        
+        if not cs_bs.empty:
+            pdf.add_table(cs_bs, 'Common-Size Balance Sheet (% of Total Assets)')
+        
+        if not cs_inc.empty:
+            pdf.add_table(cs_inc, 'Common-Size Income Statement (% of Revenue)')
+        
+        # Additional Insights
+        pdf.add_page()
+        pdf.chapter_title('Key Insights & Observations')
+        
+        insights = []
+        
+        # Generate insights based on ratios
+        if 'Current Ratio' in ratios_df.index:
+            cr = ratios_df.loc['Current Ratio'].iloc[0]
+            if cr < 1:
+                insights.append("• Current ratio below 1 indicates potential liquidity concerns")
+            elif cr > 2:
+                insights.append("• Strong current ratio indicates good short-term liquidity")
+        
+        if 'Debt-to-Equity' in ratios_df.index:
+            dte = ratios_df.loc['Debt-to-Equity'].iloc[0]
+            if dte > 2:
+                insights.append("• High leverage may indicate increased financial risk")
+            elif dte < 0.5:
+                insights.append("• Conservative capital structure with low debt")
+        
+        if 'Net Profit Margin' in ratios_df.index:
+            npm = ratios_df.loc['Net Profit Margin'].iloc[0]
+            if npm > 20:
+                insights.append("• Excellent profitability with margins above 20%")
+            elif npm < 5:
+                insights.append("• Thin profit margins may indicate pricing pressure")
+        
+        if 'Revenue Growth (%)' in ratios_df.index:
+            growth = ratios_df.loc['Revenue Growth (%)'].iloc[0]
+            if growth > 10:
+                insights.append(f"• Strong revenue growth of {growth:.1f}%")
+            elif growth < 0:
+                insights.append(f"• Revenue contraction of {abs(growth):.1f}% requires attention")
+        
+        if 'Free Cash Flow' in ratios_df.index:
+            fcf = ratios_df.loc['Free Cash Flow'].iloc[0]
+            if fcf > 0:
+                insights.append(f"• Positive free cash flow of ${fcf:,.0f}M provides financial flexibility")
+            else:
+                insights.append(f"• Negative free cash flow of ${abs(fcf):,.0f}M may require external financing")
+        
+        if not insights:
+            insights = ["• No significant observations available"]
+        
+        pdf.chapter_body("\n".join(insights))
+        
+        # Generate PDF
+        pdf.output(output_path, 'F')
+        print(f"Report generated: {output_path}")
+        
+        return output_path
